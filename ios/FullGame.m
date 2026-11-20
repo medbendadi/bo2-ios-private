@@ -15,7 +15,6 @@ static NSDictionary<NSString *,NSString *> *AllModes(void) {
     return @{@"sps":@"Campaign", @"mps":@"Multiplayer", @"zms":@"Zombies"};
 }
 
-// The modes this app was built with. A build made from fewer executables carries fewer of them.
 static NSDictionary<NSString *,NSString *> *Modes(void) {
     static NSDictionary *built;
     static dispatch_once_t once;
@@ -43,27 +42,27 @@ static NSDictionary *ServerInfo(const void *bytes, size_t length, NSString *nonc
 
 static NSDictionary *WiredServerInfo(uint16_t port, NSString *nonce) {
     int listener=socket(AF_INET,SOCK_STREAM,0);
-    if (listener<0) return nil;
+    if (listener <0) return nil;
     int one=1;
-    setsockopt(listener,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));
+    setsockopt(listener,SOL_SOCKET,SO_REUSEADDR, &one,sizeof(one));
     struct sockaddr_in local={.sin_len=sizeof(local),.sin_family=AF_INET,
-                              .sin_port=htons(19469),.sin_addr={htonl(INADDR_LOOPBACK)}};
-    struct pollfd pfd={.fd=listener,.events=POLLIN};
+        .sin_port=htons(19469),.sin_addr={htonl(INADDR_LOOPBACK)}};
+    struct pollfd pfd={.fd=listener ,.events=POLLIN};
     int client=-1;
-    if (!bind(listener,(struct sockaddr *)&local,sizeof(local)) && !listen(listener,1) && poll(&pfd,1,10000)>0)
+    if (!bind(listener,(struct sockaddr *) &local,sizeof(local)) && !listen(listener,1) && poll(&pfd,1,10000) >0)
         client=accept(listener,NULL,NULL);
     close(listener);
-    if (client<0) return nil;
+    if (client <0) return nil;
     struct timeval timeout={.tv_sec=3};
-    setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
-    setsockopt(client,SOL_SOCKET,SO_NOSIGPIPE,&one,sizeof(one));
+    setsockopt(client,SOL_SOCKET,SO_RCVTIMEO, &timeout,sizeof(timeout));
+    setsockopt(client,SOL_SOCKET,SO_NOSIGPIPE, &one,sizeof(one));
     NSData *request=[[NSString stringWithFormat:@"%u %@\n",(unsigned)port,nonce] dataUsingEncoding:NSASCIIStringEncoding];
     NSMutableData *reply=[NSMutableData new];
-    if (send(client,request.bytes,request.length,0)==(ssize_t)request.length) {
+    if (send(client,request.bytes,request.length,0)==(ssize_t)request.length ) {
         char buffer[2048];
-        while (reply.length<8192) {
+        while (reply.length <8192) {
             ssize_t n=recv(client,buffer,sizeof(buffer),0);
-            if (n<=0) break;
+            if (n <=0) break;
             [reply appendBytes:buffer length:n];
         }
     }
@@ -71,7 +70,6 @@ static NSDictionary *WiredServerInfo(uint16_t port, NSString *nonce) {
     return ServerInfo(reply.bytes,reply.length,nonce);
 }
 
-// Launch arguments such as "-BO2ConnectDelay 80" override the default waits.
 static NSTimeInterval Delay(NSString *key, NSTimeInterval fallback) {
     double value=[NSUserDefaults.standardUserDefaults doubleForKey:key];
     return value>=5 && value<=600 ? value : fallback;
@@ -85,13 +83,11 @@ static uint32_t ClientState(void *handle, BOOL mp) {
     return value;
 }
 
-// The frontend can still be loading when the first connect is queued. Repeat
-// it only while the client connection state has not moved at all.
-static void QueueConnect(void *handle, void (*queue)(const char *), NSString *command, BOOL mp, unsigned retries) {
+static void QueueConnect(void *handle, void (*queue)(const char *), NSString command, BOOL mp, unsigned retries) {
     uint32_t before=ClientState(handle,mp);
     queue(command.UTF8String);
     if (!retries || before==UINT32_MAX) return;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,15*NSEC_PER_SEC),dispatch_get_main_queue(),^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (ClientState(handle,mp)!=before) return;
         NSLog(@"Private connect left the client state at %u, retrying",before);
         QueueConnect(handle,queue,command,mp,retries-1);
@@ -99,18 +95,15 @@ static void QueueConnect(void *handle, void (*queue)(const char *), NSString *co
 }
 
 static void ConfigureRuntime(NSString *mode) {
-    // The render worker sleeps after each pump, in addition to drawable wait and encoding.
     if (UIScreen.mainScreen.maximumFramesPerSecond > 60) setenv("BO2_PUMP_US", "1000", 1);
-    // Keep the upstream play_steam.sh execution settings. The desktop launcher
-    // also enables named input pipes; UIKit sends events directly to the queue.
     NSDictionary *settings = @{
-        @"BO2_WINDOW":@"1", @"BO2_WINDOW_HOLD":@"0", @"BO2_STALL_ABORT":@"0",
-        @"BO2_MAX_IMPORTS":@"0", @"BO2_TR_CACHE":@"0", @"BO2_MUTE":@"0", @"BO2_XAUDIO":@"1",
-        @"BO2_DEPTH_BIAS":@"1", @"BO2_DEPTH_DSV":@"1", @"BO2_SV_INLINE":@"1",
-        @"BO2_NO_FORCE_MAP":@"1", @"BO2_MSGB":@"150", @"BO2_VB_RESIDENT":@"1",
-        @"BO2_VPX_NATIVE":@"1", @"BO2_VPX_REPLACE":@"1", @"BO2_W32_FAST":@"1",
-        @"BO2_PREEMPT_W":@"20000", @"BO2_CS_COOP":@"1", @"BO2_RR_FAIR":@"1",
-        @"BO2_REAL_MUTEX":@"1", @"BO2_HOST_THREADS":@"jq,snd,snddec,srv,backend", @"BO2_HW_ATOMICS":@"2"
+        @"BO2_WINDOW": @"1", @"BO2_WINDOW_HOLD": @"0", @"BO2_STALL_ABORT": @"0",
+        @"BO2_MAX_IMPORTS": @"0", @"BO2_TR_CACHE": @"0", @"BO2_MUTE": @"0", @"BO2_XAUDIO": @"1",
+        @"BO2_DEPTH_BIAS": @"1", @"BO2_DEPTH_DSV": @"1", @"BO2_SV_INLINE": @"1",
+        @"BO2_NO_FORCE_MAP": @"1", @"BO2_MSGB": @"150", @"BO2_VB_RESIDENT": @"1",
+        @"BO2_VPX_NATIVE": @"1", @"BO2_VPX_REPLACE": @"1", @"BO2_W32_FAST": @"1",
+        @"BO2_PREEMPT_W": @"20000", @"BO2_CS_COOP": @"1", @"BO2_RR_FAIR": @"1",
+        @"BO2_REAL_MUTEX": @"1", @"BO2_HOST_THREADS": @"jq,snd,snddec,srv,backend", @"BO2_HW_ATOMICS": @"2"
     };
     for (NSString *key in settings) setenv(key.UTF8String, [settings[key] UTF8String], 1);
     if ([mode isEqualToString:@"sps"]) {
@@ -121,14 +114,22 @@ static void ConfigureRuntime(NSString *mode) {
     }
 }
 
-// Keep game assets in the sealed bundle, with a writable players directory
-// beside links to the immutable files. The guest sees a normal install tree.
 static NSURL *GameDirectory(NSError **error) {
     NSFileManager *files = NSFileManager.defaultManager;
     NSURL *assets = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"Game"];
     NSURL *support = [files URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask
-                           appropriateForURL:nil create:YES error:error];
+                                          appropriateForURL:nil create:YES error:error];
     if (!support) return nil;
+
+    NSURL *documents = [files URLForDirectory:NSDocumentDirectory inDomain:NSUserDomainMask
+                                     appropriateForURL:nil create:NO error:nil];
+    if (documents) {
+        NSURL *manualAssets = [documents URLByAppendingPathComponent:@"Game"];
+        if ([manualAssets checkResourceIsReachableAndReturnError:nil]) {
+            assets = manualAssets;
+        }
+    }
+
     if (![assets checkResourceIsReachableAndReturnError:nil]) {
         assets = [support URLByAppendingPathComponent:@"BO2GameFiles"];
         if (![assets checkResourceIsReachableAndReturnError:nil]) {
@@ -142,11 +143,10 @@ static NSURL *GameDirectory(NSError **error) {
     if (!entries) return nil;
     NSURL *root = [support URLByAppendingPathComponent:@"BO2"];
     if (![files createDirectoryAtURL:[root URLByAppendingPathComponent:@"players"] withIntermediateDirectories:YES
-                           attributes:nil error:error]) return nil;
+                          attributes:nil error:error]) return nil;
     for (NSURL *entry in entries) {
         if ([entry.lastPathComponent.lowercaseString isEqualToString:@"players"]) continue;
         NSURL *link = [root URLByAppendingPathComponent:entry.lastPathComponent];
-        // iOS may assign a fresh bundle path on update. Replace stale links only.
         NSString *old = [files destinationOfSymbolicLinkAtPath:link.path error:nil];
         if ([old isEqualToString:entry.path]) continue;
         if (old && ![files removeItemAtURL:link error:error]) return nil;
@@ -155,7 +155,6 @@ static NSURL *GameDirectory(NSError **error) {
     return root;
 }
 
-// Launcher buttons. A card is one game mode; a chip is a secondary action.
 static UIButton *Card(NSString *title, NSString *subtitle, NSString *symbol) {
     UIButtonConfiguration *look = UIButtonConfiguration.filledButtonConfiguration;
     look.title = title;
@@ -202,41 +201,37 @@ static UIButtonConfiguration *ChipLook(NSString *title, NSString *symbol, UIColo
     };
     return look;
 }
+
 static UIButton *Chip(NSString *title, NSString *symbol) {
     return [UIButton buttonWithConfiguration:ChipLook(title, symbol, nil) primaryAction:nil];
 }
 
-// The game writes its diagnostics to stderr, which is discarded when the app is
-// opened from the Home Screen. Keep the current and previous run in Caches so a
-// crash can be read afterwards. A marker file tells the next launch about it.
 static NSURL *RunFile(NSString *name) {
     NSURL *caches = [NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject;
     return [caches URLByAppendingPathComponent:name];
 }
+
 static BOOL PreviousRunFailed(void) {
     return [RunFile(@"run-active") checkResourceIsReachableAndReturnError:nil];
 }
+
 static BOOL gRunning;
-// Leaving the app is how a session normally ends, so the marker only stays
-// while the game is in the foreground.
+
 static void MarkRun(BOOL active) {
     if (active) [NSFileManager.defaultManager createFileAtPath:RunFile(@"run-active").path contents:nil attributes:nil];
     else [NSFileManager.defaultManager removeItemAtURL:RunFile(@"run-active") error:nil];
 }
+
 static void BeginRunLog(void) {
     NSFileManager *files = NSFileManager.defaultManager;
     gRunning = YES;
     MarkRun(YES);
-    // Redirect only when the output would be discarded. A console, pipe or
-    // file set up by a test harness keeps receiving it.
     struct stat out, null;
     if (fstat(STDERR_FILENO, &out) || stat("/dev/null", &null) || !S_ISCHR(out.st_mode) || out.st_rdev != null.st_rdev) return;
     NSURL *log = RunFile(@"last-run.log"), *previous = RunFile(@"previous-run.log");
     [files removeItemAtURL:previous error:nil];
     [files moveItemAtURL:log toURL:previous error:nil];
     if (!freopen(log.fileSystemRepresentation, "w", stderr)) return;
-    // The game logs a great deal while loading. Buffer it and flush once a second,
-    // so the file costs one write a second and a crash loses at most that second.
     setvbuf(stderr, NULL, _IOFBF, 1 << 16);
     static dispatch_source_t flusher;
     flusher = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
@@ -244,13 +239,13 @@ static void BeginRunLog(void) {
     dispatch_source_set_event_handler(flusher, ^{ fflush(stderr); });
     dispatch_resume(flusher);
 }
-// Heat and Low Power Mode both slow the phone down. Record them with the frame
-// rates so a slow session can be told apart from a slow build.
+
 static void LogDeviceState(void) {
     NSProcessInfo *info = NSProcessInfo.processInfo;
     fprintf(stderr, "[device] thermal=%ld lowPower=%d recording=%d\n", (long)info.thermalState,
             info.lowPowerModeEnabled, UIScreen.mainScreen.isCaptured);
 }
+
 static void EndRunLog(void) {
     fflush(stderr);
     gRunning = NO;
@@ -259,6 +254,7 @@ static void EndRunLog(void) {
 
 @interface ModePicker : UIViewController
 @end
+
 @implementation ModePicker {
     UIStackView *_menu;
     UILabel *_status;
@@ -272,6 +268,7 @@ static void EndRunLog(void) {
     uint16_t _port;
     BOOL _wired;
 }
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.04 green:0.045 blue:0.055 alpha:1];
@@ -285,7 +282,6 @@ static void EndRunLog(void) {
     [_steamAccount setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[title, _steamAccount]];
     header.alignment = UIStackViewAlignmentCenter;
-
     UIStackView *modes = [UIStackView new];
     modes.distribution = UIStackViewDistributionFillEqually;
     modes.spacing = 12;
@@ -299,7 +295,6 @@ static void EndRunLog(void) {
         [card addTarget:self action:@selector(choose:) forControlEvents:UIControlEventTouchUpInside];
         [modes addArrangedSubview:card];
     }
-
     UIButton *join = Chip(@"Join Private Server", @"network");
     [join addTarget:self action:@selector(pickServer) forControlEvents:UIControlEventTouchUpInside];
     UIButton *library = Chip(@"Steam Library", @"square.grid.2x2.fill");
@@ -312,13 +307,11 @@ static void EndRunLog(void) {
     UIStackView *tools = [[UIStackView alloc] initWithArrangedSubviews:@[join, library, files, fpsLog]];
     tools.distribution = UIStackViewDistributionFillEqually;
     tools.spacing = 12;
-
     _status = [UILabel new];
     _status.textColor = [UIColor colorWithWhite:1 alpha:0.75];
     _status.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
     _status.textAlignment = NSTextAlignmentCenter;
     _status.numberOfLines = 2;
-
     _menu = [[UIStackView alloc] initWithArrangedSubviews:@[header, modes, tools, _status]];
     _menu.axis = UILayoutConstraintAxisVertical;
     _menu.spacing = 12;
@@ -335,12 +328,13 @@ static void EndRunLog(void) {
         [_status.heightAnchor constraintEqualToConstant:32]
     ]];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(updateSteamAccount:)
-        name:@"BO2SteamSignInDidChange" object:nil];
+                                             name:@"BO2SteamSignInDidChange" object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(steamLibraryPlay:)
-        name:@"BO2SteamLibraryPlay" object:nil];
+                                             name:@"BO2SteamLibraryPlay" object:nil];
     [self updateSteamAccount:nil];
     if (PreviousRunFailed()) _status.text = @"The last session ended unexpectedly. Its log was kept for review.";
 }
+
 - (void)shareFPSLog:(UIButton *)sender {
     NSURL *file = RunFile(@"BO2-FPS.txt");
     NSURL *raw = RunFile(@"last-run.log");
@@ -373,39 +367,38 @@ static void EndRunLog(void) {
                 [report appendFormat:@"ready=%llu intervalMs=%.3f\n", frame, interval];
             } else if (sscanf(line, "[pace] %llu %d %d %d %d %lf", &frame, &userLimit, &modeLimit, &picked, &calls, &wait) == 6)
                 [report appendFormat:@"engineFrame=%llu comMaxFPS=%d modeLimit=%d pickedFPS=%d waitCalls=%d limiterWaitMs=%.3f lastReady=%llu\n",
-                    frame, userLimit, modeLimit, picked, calls, wait, lastReady];
+                 frame, userLimit, modeLimit, picked, calls, wait, lastReady];
             else if (sscanf(line, "[assist-range] %llu %d %lf %lf", &frame, &friction, &wait, &interval) == 4)
                 [report appendFormat:@"assistTimeMs=%llu targetSource=%@ forwardUnits=%.1f angularOffsetRatio=%.5f lastReady=%llu\n",
-                    frame, friction ? @"native" : @"crosshair", wait, interval, lastReady];
+                 frame, friction ? @"native" : @"crosshair", wait, interval, lastReady];
             else if (sscanf(line, "[stick] %llu %d %d %d %d %d %d", &frame, &rx, &ry, &ox, &oy, &friction, &lt) == 7)
                 [report appendFormat:@"stickTimeMs=%llu rawX=%d rawY=%d assistedX=%d assistedY=%d active=%d leftTrigger=%d lastReady=%llu\n",
-                    frame, rx, ry, ox, oy, friction, lt, lastReady];
+                 frame, rx, ry, ox, oy, friction, lt, lastReady];
             else if (sscanf(line, "[pad-friction] active=%d", &friction) == 1)
                 [report appendFormat:@"controllerAssistActive=%d\n", friction];
-            else if (strncmp(line, "[frame-prep] ", 13) == 0) {
+            else if (strncmp(line, "[frame-prep]  ", 13) == 0) {
                 double span, draw, record, lock, publish, device;
                 unsigned long long drawCalls, recordCalls;
                 if (sscanf(line, "[frame-prep] %llu %lf %lf %lf %lf %lf %lf %llu %llu",
                            &frame, &span, &draw, &record, &lock, &publish, &device, &drawCalls, &recordCalls) == 9)
                     [report appendFormat:@"prepFrame=%llu drawSpanMs=%.3f drawPrepareMs=%.3f drawRecordMs=%.3f drawMutexWaitMs=%.3f publishMutexWaitMs=%.3f deviceMutexWaitMs=%.3f drawCalls=%llu recordCalls=%llu\n",
-                        frame, span, draw, record, lock, publish, device, drawCalls, recordCalls];
+                     frame, span, draw, record, lock, publish, device, drawCalls, recordCalls];
             }
             else if (sscanf(line, "[render-pump] %llu %lf %lf %lf", &frame, &wait, &total, &encode) == 4)
                 [report appendFormat:@"renderFrame=%llu mainQueueWaitMs=%.3f workerBlockedMs=%.3f metalEncodeMs=%.3f\n",
-                    frame, wait, total, encode];
+                 frame, wait, total, encode];
             else if (sscanf(line, "[frame-submit] %llu %lf %lf %lf", &frame, &wait, &encode, &total) == 4)
                 [report appendFormat:@"submit=%llu pickupWaitMs=%.3f pickupToCommitMs=%.3f readyToCommitMs=%.3f\n",
-                    frame, wait, encode, total];
+                 frame, wait, encode, total];
             else if (sscanf(line, "[fps-link] max=%d callbacks=%lf target=%lf lowPower=%d thermal=%d",
                             &hz, &ticks, &target, &power, &thermal) == 5)
                 [report appendFormat:@"screenMax=%d callbacksHz=%.1f targetHz=%.1f lowPower=%d thermal=%d\n",
-                    hz, ticks, target, power, thermal];
+                 hz, ticks, target, power, thermal];
             else if (sscanf(line, "[PRESENT] hote=%*f unix=%*f fen=%lfs soumis=%u soumis_neufs=%u affiches=%u affiches_neufs=%u non_affiches=%u",
                             &secs, &submitted, &fresh, &displayed, &displayedFresh, &dropped) == 6 && secs > 0)
                 [report appendFormat:@"window=%.3fs submittedFPS=%.1f freshSubmittedFPS=%.1f displayedFPS=%.1f freshDisplayedFPS=%.1f dropped=%u\n",
-                    secs, submitted/secs, fresh/secs, displayed/secs, displayedFresh/secs, dropped];
+                 secs, submitted/secs, fresh/secs, displayed/secs, displayedFresh/secs, dropped];
             else if (zombies) {
-                // Export only known engine events and bounded asset identifiers.
                 const char *events[] = {"Adding fastfile '", "Loading fastfile '", "Loading sounds for '", "Loaded sounds for '"};
                 const char *labels[] = {"queued", "loading", "sound-start", "sound-finished"};
                 const char prefix[] = "[OutputDebugString] ";
@@ -414,7 +407,7 @@ static void EndRunLog(void) {
                     size_t len = strlen(events[i]);
                     if (strncmp(msg, events[i], len)) continue;
                     const char *name = msg + len;
-                    size_t n = strspn(name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
+                    size_t n = strspn(name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -");
                     if (n && n <= 96 && name[n] == '\'')
                         [report appendFormat:@"zmStage=%s zone=%.*s lastReady=%llu\n", labels[i], (int)n, name, lastReady];
                     break;
@@ -435,12 +428,14 @@ static void EndRunLog(void) {
         });
     });
 }
+
 - (void)presentFPSLog:(NSURL *)file sender:(UIButton *)sender {
     UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[file] applicationActivities:nil];
     share.popoverPresentationController.sourceView = sender;
     share.popoverPresentationController.sourceRect = sender.bounds;
     [self presentViewController:share animated:YES completion:nil];
 }
+
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     NSString *steamMode = [NSUserDefaults.standardUserDefaults stringForKey:@"BO2RequestedSteamMode"];
@@ -450,7 +445,6 @@ static void EndRunLog(void) {
         return;
     }
     NSString *requested = [NSUserDefaults.standardUserDefaults stringForKey:@"BO2RequestedMode"];
-    // The game can ask for a mode this app was built without.
     if (AllModes()[requested ?: @""] && !Modes()[requested] && !_started) {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:@"BO2RequestedMode"];
         _status.text = [NSString stringWithFormat:@"%@ is not part of this build.", AllModes()[requested]];
@@ -461,23 +455,26 @@ static void EndRunLog(void) {
         [self start:requested];
     }
 }
+
 - (NSString *)savedAddress:(NSString *)mode {
     NSString *key = [@"BO2Server." stringByAppendingString:mode];
     NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:key];
     NSString *host = [NSBundle.mainBundle objectForInfoDictionaryKey:@"BO2PrivateServer"];
-    return saved ?: (host.length ? [NSString stringWithFormat:@"%@:%d",host,
-                                        [mode isEqualToString:@"mps"] ? 24985 : 24988] : @"");
+    return saved ?: (host.length ? [NSString stringWithFormat:@"%@:%d", host,
+                                    [mode isEqualToString:@"mps"] ? 24985 : 24988] : @"");
 }
+
 - (void)pickServer {
     if (_checking || _started || _installer) return;
     UIAlertController *list = [UIAlertController alertControllerWithTitle:@"Join Private Server"
-        message:nil preferredStyle:UIAlertControllerStyleAlert];
+                                                                  message:nil preferredStyle:UIAlertControllerStyleAlert];
     for (NSString *mode in @[@"mps", @"zms"]) {
         if (!Modes()[mode]) continue;
         NSString *title = [mode isEqualToString:@"mps"] ? @"Aftermath · Multiplayer" : @"TranZit · Zombies";
         [list addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){
             UIAlertController *edit = [UIAlertController alertControllerWithTitle:title
-                message:@"Enter the private server’s IPv4 address and port." preferredStyle:UIAlertControllerStyleAlert];
+                                                                          message:@"Enter the private server’s IPv4 address and port."
+                                                                   preferredStyle:UIAlertControllerStyleAlert];
             [edit addTextFieldWithConfigurationHandler:^(UITextField *field){
                 field.text = [self savedAddress:mode];
                 field.placeholder = @"address:port";
@@ -494,37 +491,38 @@ static void EndRunLog(void) {
     [list addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:list animated:YES completion:nil];
 }
+
 - (void)join:(NSString *)mode address:(NSString *)input {
     if (_checking || _started || _installer) return;
     NSArray<NSString *> *parts = [[input stringByTrimmingCharactersInSet:
-        NSCharacterSet.whitespaceAndNewlineCharacterSet] componentsSeparatedByString:@":"];
+                                   NSCharacterSet.whitespaceAndNewlineCharacterSet] componentsSeparatedByString:@":"];
     struct in_addr ip;
     NSString *portText = parts.lastObject;
     NSInteger port = portText.integerValue;
-    if (parts.count != 2 || inet_pton(AF_INET,parts.firstObject.UTF8String,&ip) != 1 ||
-        port < 1 || port > 65535 || ![[NSString stringWithFormat:@"%ld",(long)port] isEqual:portText]) {
+    if (parts.count != 2 || inet_pton(AF_INET, parts.firstObject.UTF8String, &ip) != 1 ||
+        port < 1 || port > 65535 || ![[NSString stringWithFormat:@"%ld", (long)port] isEqual:portText]) {
         _status.text = @"Enter an IPv4 address and a port from 1 to 65535.";
         return;
     }
     _checking = YES;
     _status.text = @"Checking the private server…";
-    NSLog(@"Checking private %@ server",Modes()[mode]);
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-        int fd = socket(AF_INET,SOCK_DGRAM,0);
-        struct sockaddr_in peer = {.sin_len=sizeof(peer),.sin_family=AF_INET,.sin_addr=ip,.sin_port=htons((uint16_t)port)};
+    NSLog(@"Checking private %@ server", Modes()[mode]);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        int fd = socket(AF_INET, SOCK_DGRAM, 0);
+        struct sockaddr_in peer = {.sin_len=sizeof(peer), .sin_family=AF_INET, .sin_addr=ip, .sin_port=htons((uint16_t)port)};
         NSString *nonce = NSUUID.UUID.UUIDString;
         NSMutableData *query = [NSMutableData dataWithBytes:"\xff\xff\xff\xff" length:4];
-        [query appendData:[[NSString stringWithFormat:@"getinfo %@",nonce] dataUsingEncoding:NSASCIIStringEncoding]];
+        [query appendData:[[NSString stringWithFormat:@"getinfo %@", nonce] dataUsingEncoding:NSASCIIStringEncoding]];
         NSDictionary *info=nil;
         BOOL wired=NO;
-        if (fd >= 0 && !connect(fd,(struct sockaddr *)&peer,sizeof(peer))) {
+        if (fd >= 0 && !connect(fd, (struct sockaddr *)&peer, sizeof(peer))) {
             struct timeval timeout = {.tv_sec=1};
-            setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             for (int i=0; i<6 && !info; i++) {
-                if (send(fd,query.bytes,query.length,0)<0) { usleep(250000); continue; }
+                if (send(fd, query.bytes, query.length, 0) <0) { usleep(250000); continue; }
                 char buffer[8192];
-                ssize_t n=recv(fd,buffer,sizeof(buffer),0);
-                if (n>0) info=ServerInfo(buffer,(size_t)n,nonce);
+                ssize_t n=recv(fd, buffer, sizeof(buffer), 0);
+                if (n >0) info=ServerInfo(buffer, (size_t)n, nonce);
             }
         }
         if (!info) {
@@ -533,22 +531,22 @@ static void EndRunLog(void) {
             BOOL wifi=NO;
             if (!getifaddrs(&list)) {
                 for (struct ifaddrs *it=list; it; it=it->ifa_next)
-                    if (it->ifa_addr && it->ifa_addr->sa_family==AF_INET && !strcmp(it->ifa_name,"en0")) wifi=YES;
+                    if (it->ifa_addr && it->ifa_addr->sa_family==AF_INET && !strcmp(it->ifa_name, "en0")) wifi=YES;
                 freeifaddrs(list);
             }
-            NSLog(@"Private UDP query failed: error %d, Wi-Fi IPv4 available=%d",netError,wifi);
+            NSLog(@"Private UDP query failed: error %d, Wi-Fi IPv4 available=%d", netError, wifi);
         }
-        if (fd>=0) close(fd);
+        if (fd >=0) close(fd);
         if (!info && [parts.firstObject isEqual:[NSBundle.mainBundle objectForInfoDictionaryKey:@"BO2PrivateServer"]]
             && (port==24985 || port==24988)) {
-            dispatch_async(dispatch_get_main_queue(),^{self->_status.text=@"Checking the Mac USB connection…";});
-            info=WiredServerInfo((uint16_t)port,nonce);
+            dispatch_async(dispatch_get_main_queue(), ^{self->_status.text=@"Checking the Mac USB connection…";});
+            info=WiredServerInfo((uint16_t)port, nonce);
             wired=info!=nil;
         }
         BOOL mp=[mode isEqualToString:@"mps"];
         BOOL compatible=[info[@"sessionmode"] isEqual:mp?@"0":@"1"] && [info[@"protocol"] isEqual:mp?@"2091":@"2089"] &&
-                        [info[@"isInGame"] isEqual:@"1"];
-        if (info) NSLog(@"Private server answered over %@, compatible=%d",wired?@"USB":@"Wi-Fi",compatible);
+        [info[@"isInGame"] isEqual:@"1"];
+        if (info) NSLog(@"Private server answered over %@, compatible=%d", wired?@"USB":@"Wi-Fi", compatible);
         dispatch_async(dispatch_get_main_queue(), ^{
             self->_checking = NO;
             if (!info) { self->_status.text=@"Server did not answer. Check Wi-Fi and Local Network access, or connect to the Mac with USB and try again."; return; }
@@ -561,6 +559,7 @@ static void EndRunLog(void) {
         });
     });
 }
+
 - (void)choose:(UIButton *)sender {
     if (_checking) return;
     _server=nil;
@@ -579,15 +578,14 @@ static void EndRunLog(void) {
     }
     [self startLocal:mode];
 }
-// A build with an ownership receipt starts local play from it. A build without one has no
-// account of its own, so local play also runs on the signed-in Steam session, which checks ownership.
+
 - (void)startLocal:(NSString *)mode {
     if ([NSBundle.mainBundle URLForResource:@"SteamOwnership" withExtension:@"plist"]) [self start:mode];
     else [self startSteam:mode online:NO];
 }
+
 - (void)steamInstall {
     if(_installer || _started || _checking) return;
-    // A second tap pauses a running download; finished parts are kept.
     if(BO2GameDownload.running){ [BO2GameDownload cancel]; return; }
     if([NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"Game"].hasDirectoryPath &&
        [[NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"Game"] checkResourceIsReachableAndReturnError:nil]){
@@ -601,33 +599,35 @@ static void EndRunLog(void) {
     [menu addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:menu animated:YES completion:nil];
 }
+
 - (void)steamDownload {
     if(_installer || _started || _checking || BO2GameDownload.running) return;
-    // Installed files are checked in place and any that differ from Steam's are replaced, so ask first.
     NSURL *support=[NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask
-                                              appropriateForURL:nil create:NO error:nil];
+                                                 appropriateForURL:nil create:NO error:nil];
     if(![[support URLByAppendingPathComponent:@"BO2GameFiles"] checkResourceIsReachableAndReturnError:nil]){ [self beginSteamDownload]; return; }
     UIAlertController *ask=[UIAlertController alertControllerWithTitle:@"Check game files with Steam?"
-        message:@"Game files are already installed. Any file that differs from Steam's copy will be downloaded again and replaced."
-        preferredStyle:UIAlertControllerStyleAlert];
+                                                               message:@"Game files are already installed. Any file that differs from Steam's copy will be downloaded again and replaced."
+                                                        preferredStyle:UIAlertControllerStyleAlert];
     [ask addAction:[UIAlertAction actionWithTitle:@"Check and Repair" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){ [self beginSteamDownload]; }]];
     [ask addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:ask animated:YES completion:nil];
 }
+
 - (void)beginSteamDownload {
     if(_installer || _started || _checking || BO2GameDownload.running) return;
     __weak ModePicker *weakSelf=self;
-    [BO2GameDownload startWithStatus:^(NSString *text,BOOL done){
+    [BO2GameDownload startWithStatus:^(NSString *text, BOOL done){
         ModePicker *picker=weakSelf;
         if(picker) picker->_status.text=text;
     }];
 }
+
 - (void)libraryInstall {
     if(_installer || _started || _checking || BO2GameDownload.running) return;
     _installer=[SteamInstaller new];
     _installer.window=self.view.window;
     __weak ModePicker *weakSelf=self;
-    _installer.status=^(NSString *text,BOOL done){
+    _installer.status=^(NSString *text, BOOL done){
         ModePicker *picker=weakSelf;
         if(!picker)return;
         picker->_status.text=text;
@@ -635,33 +635,39 @@ static void EndRunLog(void) {
     };
     [_installer begin];
 }
+
 - (void)updateSteamAccount:(NSNotification *)notification {
-    // Show only whether a session exists. The account name stays off the screen.
     BOOL signedIn = [BO2SteamSignIn accountName].length > 0;
     _steamAccount.configuration = signedIn
         ? ChipLook(@"Steam · Signed in", @"checkmark.circle.fill", [UIColor colorWithRed:0.45 green:0.85 blue:0.5 alpha:1])
         : ChipLook(@"Sign in to Steam", @"person.crop.circle", nil);
 }
+
 - (void)steamAccount {
     if (_installer || _started || _checking) return;
     [BO2SteamSignIn presentFromViewController:self];
 }
+
 - (void)steamLibrary {
     if (_installer || _started || _checking) return;
     [BO2SteamSignIn presentLibraryFromViewController:self];
 }
+
 - (void)steamLibraryPlay:(NSNotification *)notification {
     NSString *mode=notification.userInfo[@"mode"];
     if (![mode isKindOfClass:NSString.class] || !Modes()[mode]) return;
     [self startSteam:mode];
 }
+
 - (void)finishSteamLaunch {
     [_steamLaunch finish];
     _steamLaunch = nil;
 }
+
 - (void)startSteam:(NSString *)mode {
     [self startSteam:mode online:NO];
 }
+
 - (void)startSteam:(NSString *)mode online:(BOOL)online {
     if (_installer || _started || _checking || !Modes()[mode]) return;
     if (BO2GameDownload.running) { _status.text=@"Game files are still downloading. Tap Game Files to pause."; return; }
@@ -674,19 +680,20 @@ static void EndRunLog(void) {
     _server = nil;
     _status.text = @"Connecting to Steam…";
     [BO2SteamRuntime prepareMode:mode assets:assets legacySteamID:[receipt[@"account"] unsignedLongLongValue]
-        completion:^(BO2SteamLaunch *launch, NSError *failure) {
-            self->_checking = NO;
-            if (!launch) {
-                self->_status.text = failure.localizedDescription;
-                NSLog(@"[steam-runtime] preparation failed");
-                return;
-            }
-            self->_steamLaunch = launch;
-            self->_onlineRequested = online;
-            [self start:mode];
-            if (!self->_started) [self finishSteamLaunch];
-        }];
+                   completion:^(BO2SteamLaunch *launch, NSError *failure) {
+        self->_checking = NO;
+        if (!launch) {
+            self->_status.text = failure.localizedDescription;
+            NSLog(@"[steam-runtime] preparation failed");
+            return;
+        }
+        self->_steamLaunch = launch;
+        self->_onlineRequested = online;
+        [self start:mode];
+        if (!self->_started) [self finishSteamLaunch];
+    }];
 }
+
 - (void)start:(NSString *)mode {
     if (_installer || _started || !Modes()[mode]) return;
     if (BO2GameDownload.running) { _status.text=@"Game files are still downloading. Tap Game Files to pause."; return; }
@@ -694,20 +701,20 @@ static void EndRunLog(void) {
     NSURL *game = _steamLaunch ? [NSURL fileURLWithPath:_steamLaunch.gameDirectory isDirectory:YES] : GameDirectory(&error);
     if (!game) { _status.text = error.localizedDescription; return; }
     NSURL *sections = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:
-        [NSString stringWithFormat:@"Modes/%@/%@",mode,_server ? @"pluto_pe_sections.bin" : @"pe_sections.bin"]];
+                       [NSString stringWithFormat:@"Modes/%@/%@", mode, _server ? @"pluto_pe_sections.bin" : @"pe_sections.bin"]];
     if (![sections checkResourceIsReachableAndReturnError:&error]) { _status.text = error.localizedDescription; return; }
-    setenv("BO2_GAME_DIR",game.fileSystemRepresentation,1);
+    setenv("BO2_GAME_DIR", game.fileSystemRepresentation, 1);
     ConfigureRuntime(mode);
     BOOL assist = !_server && ([mode isEqualToString:@"mps"] || [mode isEqualToString:@"zms"]);
     setenv("BO2_CONTROLLER_ASSIST", assist ? "1" : "0", 1);
-    if (setenv("BO2_DW_TRANSPORT","local",1)) { _status.text=@"Could not configure game networking."; return; }
+    if (setenv("BO2_DW_TRANSPORT", "local", 1)) { _status.text=@"Could not configure game networking."; return; }
     if (chdir(game.fileSystemRepresentation)) { _status.text=@"Could not open the game directory."; return; }
     NSURL *library = [NSBundle.mainBundle.privateFrameworksURL URLByAppendingPathComponent:
-        [NSString stringWithFormat:@"%@.framework/%@",mode,mode]];
+                      [NSString stringWithFormat:@"%@.framework/%@", mode, mode]];
     void *handle = dlopen(library.fileSystemRepresentation, RTLD_NOW|RTLD_LOCAL);
     if (!handle) { _status.text = [NSString stringWithUTF8String:dlerror()]; return; }
-    UIView *(*makeSurface)(CGRect) = (UIView *(*)(CGRect))dlsym(handle,"bo2_ios_create_surface");
-    int (*entry)(const char *) = (int (*)(const char *))dlsym(handle,"bo2_ios_start");
+    UIView *(*makeSurface)(CGRect) = (UIView *(*)(CGRect))dlsym(handle, "bo2_ios_create_surface");
+    int (*entry)(const char *) = (int (*)(const char *))dlsym(handle, "bo2_ios_start");
     if (!makeSurface || !entry) { _status.text=@"Game entry point missing."; return; }
     if (_steamLaunch && ![_steamLaunch installInHandle:handle]) {
         _status.text = @"This game build does not support Steam sessions yet.";
@@ -721,54 +728,52 @@ static void EndRunLog(void) {
     official |= [mode isEqualToString:@"mps"] && [NSProcessInfo.processInfo.arguments containsObject:@"-BO2ProbeOfficialMP"];
 #endif
     if (_steamLaunch && (fixture || official)) {
-        bool (*enableAccount)(void)=dlsym(handle,"bo2_dw_enable_account_transport");
+        bool (*enableAccount)(void)=dlsym(handle, "bo2_dw_enable_account_transport");
         if (!enableAccount || !enableAccount()) {
             _status.text=@"Game networking requires an active Steam session."; return;
         }
         if (fixture) {
             NSInteger port=[NSUserDefaults.standardUserDefaults integerForKey:@"BO2TransportFixturePort"];
-            bool (*configureFixture)(uint16_t)=dlsym(handle,"bo2_dw_set_loopback_fixture");
-            if (port<1 || port>UINT16_MAX || !configureFixture || !configureFixture((uint16_t)port)) {
+            bool (*configureFixture)(uint16_t)=dlsym(handle, "bo2_dw_set_loopback_fixture");
+            if (port <1 || port >UINT16_MAX || !configureFixture || !configureFixture((uint16_t)port)) {
                 _status.text=@"Could not start the local networking test."; return;
             }
             NSLog(@"[steam-runtime] loopback fixture configured");
         }
-        if (setenv("BO2_DW_TRANSPORT","online",1)) { _status.text=@"Could not select game networking."; return; }
+        if (setenv("BO2_DW_TRANSPORT", "online", 1)) { _status.text=@"Could not select game networking."; return; }
     }
     if (_server) {
-        bool (*transport)(const char*,uint16_t,bool)=dlsym(handle,"bo2_pluto_start");
-        void (*queue)(const char*)=dlsym(handle,"bo2_cmd_queue");
-        void (*post)(uint32_t,uint32_t,uint32_t)=dlsym(handle,"ios_game_event");
-        if (!queue || !post || !transport || !transport(_server.UTF8String,_port,_wired)) {
+        bool (*transport)(const char *, uint16_t, bool)=dlsym(handle, "bo2_pluto_start");
+        void (*queue)(const char *)=dlsym(handle, "bo2_cmd_queue");
+        void (*post)(uint32_t, uint32_t, uint32_t)=dlsym(handle, "ios_game_event");
+        if (!queue || !post || !transport || !transport(_server.UTF8String, _port, _wired)) {
             _status.text=@"Could not start the private server connection."; return;
         }
         BOOL mp=[mode isEqualToString:@"mps"];
-        NSTimeInterval connectDelay=Delay(@"BO2ConnectDelay",65);
-        NSTimeInterval keyDelay=MIN(Delay(@"BO2MenuKeyDelay",30),connectDelay-5);
-        if (mp) dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(keyDelay*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
-            post(0x100,13,1);
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,120*NSEC_PER_MSEC),dispatch_get_main_queue(),^{post(0x101,13,0xc0000001);});
+        NSTimeInterval connectDelay=Delay(@"BO2ConnectDelay", 65);
+        NSTimeInterval keyDelay=MIN(Delay(@"BO2MenuKeyDelay", 30), connectDelay-5);
+        if (mp) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(keyDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            post(0x100, 13, 1);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 120 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{post(0x101, 13, 0xc0000001);});
         });
-        NSString *command=[NSString stringWithFormat:@"connect %@:%u",_server,(unsigned)_port];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(connectDelay*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
-            QueueConnect(handle,queue,command,mp,2);
+        NSString *command=[NSString stringWithFormat:@"connect %@:%u", _server, (unsigned)_port];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(connectDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            QueueConnect(handle, queue, command, mp, 2);
         });
     }
     _started = YES;
-    if (_steamLaunch.personaName.length) setenv("BO2_NAME",_steamLaunch.personaName.UTF8String,1);
-    if (_steamLaunch) setenv("BO2_DW_TRACE","0",1);   // keep network payloads out of the saved log
+    if (_steamLaunch.personaName.length) setenv("BO2_NAME", _steamLaunch.personaName.UTF8String, 1);
+    if (_steamLaunch) setenv("BO2_DW_TRACE", "0", 1);
     BeginRunLog();
     fprintf(stderr, "[fps-session] build=%s mode=%s\n",
             [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] UTF8String], mode.UTF8String);
     LogDeviceState();
     for (NSNotificationName name in @[NSProcessInfoThermalStateDidChangeNotification,
-            NSProcessInfoPowerStateDidChangeNotification, UIScreenCapturedDidChangeNotification])
+                                      NSProcessInfoPowerStateDidChangeNotification, UIScreenCapturedDidChangeNotification])
         [NSNotificationCenter.defaultCenter addObserverForName:name object:nil queue:NSOperationQueue.mainQueue
-            usingBlock:^(NSNotification *note) { LogDeviceState(); }];
+                                                  usingBlock:^(NSNotification *note) { LogDeviceState(); }];
     UIView *surface = makeSurface(self.view.bounds);
     [self.view addSubview:surface];
-    // The launcher supplies the touch controls. Frameworks built before that
-    // carry their own copy, which is taken out so the two never both send input.
     for (UIView *builtIn in surface.subviews.copy)
         if ([NSStringFromClass(builtIn.class) isEqualToString:@"BO2TouchControls"]) [builtIn removeFromSuperview];
     BO2TouchOverlay *touch = [[BO2TouchOverlay alloc] initWithFrame:self.view.bounds handle:handle mode:mode];
@@ -786,30 +791,31 @@ static void EndRunLog(void) {
             [notice.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
             [notice.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8]
         ]];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(Delay(@"BO2ConnectDelay",65)*NSEC_PER_SEC)),dispatch_get_main_queue(),^{ [notice removeFromSuperview]; });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(Delay(@"BO2ConnectDelay", 65) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [notice removeFromSuperview]; });
     }
     _menu.hidden = YES;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         int result = entry(sections.fileSystemRepresentation);
-        if (self->_steamLaunch) NSLog(@"[steam-runtime] guest returned result=%d",result);
+        if (self->_steamLaunch) NSLog(@"[steam-runtime] guest returned result=%d", result);
         EndRunLog();
         dispatch_async(dispatch_get_main_queue(), ^{
             [self finishSteamLaunch];
             [touch removeFromSuperview];
             [surface removeFromSuperview];
             self->_menu.hidden = NO;
-            self->_status.text = [NSString stringWithFormat:@"%@ exited (%d). Reopen the app to start again.", Modes()[mode],result];
+            self->_status.text = [NSString stringWithFormat:@"%@ exited (%d). Reopen the app to start again.", Modes()[mode], result];
         });
     });
 }
+
 @end
 
 @interface GameApp : UIResponder <UIApplicationDelegate>
-@property(nonatomic,strong) UIWindow *window;
+@property(nonatomic, strong) UIWindow *window;
 @end
+
 @implementation GameApp
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {
-    // Game audio should play with the ring switch on silent, as other games do.
     [AVAudioSession.sharedInstance setCategory:AVAudioSessionCategoryPlayback error:nil];
     [AVAudioSession.sharedInstance setActive:YES error:nil];
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
@@ -820,6 +826,7 @@ static void EndRunLog(void) {
 - (void)applicationDidEnterBackground:(UIApplication *)app { fflush(stderr); MarkRun(NO); }
 - (void)applicationWillEnterForeground:(UIApplication *)app { if (gRunning) MarkRun(YES); }
 @end
-int main(int argc,char **argv) {
-    @autoreleasepool { return UIApplicationMain(argc,argv,nil,NSStringFromClass(GameApp.class)); }
+
+int main(int argc, char **argv) {
+    @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(GameApp.class)); }
 }
